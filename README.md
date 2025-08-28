@@ -14,7 +14,7 @@
 Reserved words (cannot be used as identifiers)
 
 ```
-if then else while not break
+if do else while not break
 move turn_left turn_right random_turn pick_key open_door
 front_clear on_key at_door at_exit
 ```
@@ -26,10 +26,10 @@ front_clear on_key at_door at_exit
 ```
 program        ::= { statement } EOF ;
 
-statement      ::= action ";"                -- primitive step
+statement      ::= action ";"             
+                 | "break" ";"             
                  | conditional
                  | loop
-                 | "break" ";"               -- exits nearest loop
                  ;
 
 action         ::= "move"
@@ -40,17 +40,17 @@ action         ::= "move"
                  | "open_door"
                  ;
 
-conditional    ::= "if" [ "not" ] condition "then" block
+conditional    ::= "if" condition "do" block
                     [ "else" block ] ;
 
-loop           ::= "while" [ "not" ] condition "then" block ;
+loop           ::= "while" condition "do" block ;
 
 block          ::= "{" { statement } "}" ;
 
-condition      ::= "front_clear"
-                 | "on_key"
-                 | "at_door"
-                 | "at_exit" ;
+condition       ::= term { "or" term } ;
+term            ::= factor { "and" factor } ;
+factor          ::= "not" factor | primitive ;
+primitive       ::= "front_clear" | "on_key" | "at_door" | "at_exit" | "false" | "true" ;
 ```
 
 *Terminals* are quoted.
@@ -110,13 +110,13 @@ Errors are detected at three levels:
 All diagnostics are rendered with `diagnostic.py`, giving Rust-style code frames, coloured output when the terminal supports ANSI, and optional notes. Example (`examples/syntax_error.vl`):
 
 ```
-error: expected 'then'
+error: expected 'do'
   --> examples/syntax_error.vl:4:16
    |
- 3 |     if on_key  then { pick_key; }
+ 3 |     if on_key  do { pick_key; }
  4 |     if at_door { open_door; }
    |                ^             
- 5 |     if at_exit then { break; }
+ 5 |     if at_exit do { break; }
 ```
 
 ---
@@ -134,11 +134,11 @@ Comments are treated as whitespace; they may appear anywhere a token boundary is
 
 ```cool
 /* find key, open the door, or leave via exit */
-while true then {
-    if on_key  then { pick_key; }
-    if at_door then { open_door; }
-    if at_exit then { break; }
-    if front_clear then { move; } else { random_turn; }
+while true do {
+    if on_key  do { pick_key; }
+    if at_door do { open_door; }
+    if at_exit do { break; }
+    if front_clear do { move; } else { random_turn; }
 }
 ```
 

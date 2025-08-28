@@ -55,10 +55,12 @@ _TOKEN_RE = re.compile(
 
 KEYWORDS = {
     "if",
-    "then",
+    "do",
     "else",
     "while",
-    "not",
+    "not", 
+    "and", 
+    "or",
     "move",
     "turn_left",
     "turn_right",
@@ -124,17 +126,35 @@ class Action:
     name: str
     tok: Token
 
+class Expr: ...
+
+@dataclass
+class Prim(Expr):
+    name: str # front_clear / on_key …
+
+@dataclass
+class NotExpr(Expr):
+    expr: Expr
+
+@dataclass
+class BoolLit(Expr):
+    value: bool
+
+@dataclass
+class BinExpr(Expr):
+    op: str # 'and' | 'or'
+    left: Expr
+    right: Expr
+
 @dataclass
 class Cond:
-    cond: str
-    negate: bool
-    then_blk: Block
+    expr: Expr
+    do_blk: Block
     else_blk: Optional[Block]
 
 @dataclass
 class Loop:
-    cond: str
-    negate: bool
+    cond: Expr
     body: Block
 
 Node = Union[Block, Action, Cond, Loop]
@@ -197,31 +217,50 @@ class Parser:
         self._eat(TokenKind.semi, "expected ';'")
         return Action(tok.text, tok)
 
+    _prim_names = {"front_clear", "on_key", "at_door", "at_exit", "true", "false"}
+
+    def _cond_expr(self) -> Expr:
+        def parse_factor():
+            if self._cur().text == "not":
+                self._eat(TokenKind.ident, "'not'")
+                return NotExpr(parse_factor())
+            tok = self._eat(TokenKind.ident, "condition name")
+            if tok.text in ("true", "false"):
+                return BoolLit(tok.text == "true")
+            if tok.text not in self._prim_names:
+                self._err("unknown condition")
+            return Prim(tok.text)
+
+        def parse_term(): # 'and'‑chain
+            node = parse_factor()
+            while self._cur().kind is TokenKind.ident and self._cur().text == "and":
+                self._eat(TokenKind.ident, "'and'")
+                node = BinExpr("and", node, parse_factor())
+            return node
+
+        node = parse_term()
+        while self._cur().kind is TokenKind.ident and self._cur().text == "or":
+            self._eat(TokenKind.ident, "'or'")
+            node = BinExpr("or", node, parse_term())
+        return node
+
     def _if(self) -> Cond:
         self._eat(TokenKind.ident, "expected 'if'")
-        negate = False
-        if self._cur().text == "not":
-            negate = True
-            self._eat(TokenKind.ident, "expected 'not'")
-        cond_tok = self._eat(TokenKind.ident, "expected condition name")
-        self._eat(TokenKind.ident, "expected 'then'")
-        then_blk = self._block()
+        expr = self._cond_expr()
+        self._eat(TokenKind.ident, "expected 'do'")
+        do_blk = self._block()
         else_blk = None
         if self._cur().kind is TokenKind.ident and self._cur().text == "else":
             self._eat(TokenKind.ident, "expected 'else'")
             else_blk = self._block()
-        return Cond(cond_tok.text, negate, then_blk, else_blk)
+        return Cond(expr, do_blk, else_blk)
 
     def _while(self) -> Loop:
         self._eat(TokenKind.ident, "expected 'while'")
-        negate = False
-        if self._cur().text == "not":
-            negate = True
-            self._eat(TokenKind.ident, "expected 'not'")
-        cond_tok = self._eat(TokenKind.ident, "condition name")
-        self._eat(TokenKind.ident, "expected 'then'")
+        expr = self._cond_expr()
+        self._eat(TokenKind.ident, "expected 'do'")
         body = self._block()
-        return Loop(cond_tok.text, negate, body)
+        return Loop(expr, body)
 
     def _block(self) -> Block:
         self._eat(TokenKind.lbrace, "expected '{'")
@@ -230,6 +269,7 @@ class Parser:
             stmts.append(self._stmt())
         self._eat(TokenKind.rbrace, "expected '}'")
         return Block(stmts)
+
 
 class Tile(str, Enum):
     floor = "."
@@ -356,6 +396,24 @@ class Executor:
     def run(self):
         self._exec_block(self.ast)
 
+    def _eval_expr(self, e: Expr) -> bool:
+        if isinstance(e, Prim):
+            fn = getattr(self.w, e.name, None)
+            if not callable(fn):
+                _report(Diagnostic(severity="error", message=f"unknown condition '{e.name}'"))
+            return fn()
+        if isinstance(e, BoolLit):
+            return e.value
+        if isinstance(e, NotExpr):
+            return not self._eval_expr(e.expr)
+        if isinstance(e, BinExpr):
+            if e.op == "and":
+                return self._eval_expr(e.left) and self._eval_expr(e.right)
+            if e.op == "or":
+                return self._eval_expr(e.left) or self._eval_expr(e.right)
+        _report(Diagnostic(severity="error", message="internal: bad Expr"))
+        return False
+
     def _exec_block(self, blk: Block):
         for node in blk.stmts:
             if self._break:
@@ -363,17 +421,13 @@ class Executor:
             if isinstance(node, Action):
                 self._exec_action(node)
             elif isinstance(node, Cond):
-                val = self._eval_cond(node.cond)
-                val = not val if node.negate else val
-                chosen = node.then_blk if val else node.else_blk
+                val = self._eval_expr(node.expr)
+                chosen = node.do_blk if val else node.else_blk
                 if chosen:
                     self._exec_block(chosen)
+
             elif isinstance(node, Loop):
-                while True:
-                    val = self._eval_cond(node.cond)
-                    val = not val if node.negate else val
-                    if not val or self._break:
-                        break
+                while self._eval_expr(node.cond) and not self._break:
                     self._exec_block(node.body)
             else:
                 _report(Diagnostic(severity="error", message="internal: unknown AST node"))

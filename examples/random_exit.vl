@@ -1,5 +1,5 @@
-while not at_exit then {
-    if front_clear then {
+while not at_exit do {
+    if front_clear do {
         move;
     } else {
         random_turn;
