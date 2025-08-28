@@ -1,0 +1,7 @@
+while not at_exit then {
+    if front_clear then {
+        move;
+    } else {
+        random_turn;
+    }
+}

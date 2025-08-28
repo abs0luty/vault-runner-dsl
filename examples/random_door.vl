@@ -1,0 +1,11 @@
+// wander until key found
+while not on_key then {
+    if front_clear then { move; } else { random_turn; }
+}
+pick_key;
+
+// wander until door found
+while not at_door then {
+    if front_clear then { move; } else { random_turn; }
+}
+open_door;

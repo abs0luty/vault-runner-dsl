@@ -1,0 +1,7 @@
+/* find key, open the door, or leave via exit */
+while true then {
+    if on_key  then { pick_key; }
+    if at_door then { open_door; }
+    if at_exit then { break; }
+    if front_clear then { move; } else { random_turn; }
+}
