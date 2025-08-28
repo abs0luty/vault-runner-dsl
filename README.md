@@ -107,7 +107,17 @@ Errors are detected at three levels:
 | **Syntactic** | Missing `;`, `}`                            | Abort, diagnostic shows primary span and optional secondary hints.   |
 | **Runtime**   | Moving into a wall, `open_door` without key | Abort, diagnostic emitted with current source location if available. |
 
-All diagnostics are rendered with `diagnostic.py`, giving Rust-style code frames, coloured output when the terminal supports ANSI, and optional notes.
+All diagnostics are rendered with `diagnostic.py`, giving Rust-style code frames, coloured output when the terminal supports ANSI, and optional notes. Example (`examples/syntax_error.vl`):
+
+```
+error: expected 'then'
+  --> examples/syntax_error.vl:4:16
+   |
+ 3 |     if on_key  then { pick_key; }
+ 4 |     if at_door { open_door; }
+   |                ^             
+ 5 |     if at_exit then { break; }
+```
 
 ---
 

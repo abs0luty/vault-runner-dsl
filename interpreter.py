@@ -183,7 +183,7 @@ class Parser:
         }:
             return self._action()
         if tok.text == "break":
-            br = self._eat(TokenKind.ident, "break")
+            br = self._eat(TokenKind.ident, "expected 'break'")
             self._eat(TokenKind.semi, "expected ';'")
             return Action("__break__", br)
         if tok.text == "if":
@@ -193,33 +193,33 @@ class Parser:
         self._err("expected statement")
 
     def _action(self) -> Action:
-        tok = self._eat(TokenKind.ident, "action name")
+        tok = self._eat(TokenKind.ident, "expected action name")
         self._eat(TokenKind.semi, "expected ';'")
         return Action(tok.text, tok)
 
     def _if(self) -> Cond:
-        self._eat(TokenKind.ident, "'if'")
+        self._eat(TokenKind.ident, "expected 'if'")
         negate = False
         if self._cur().text == "not":
             negate = True
-            self._eat(TokenKind.ident, "'not'")
-        cond_tok = self._eat(TokenKind.ident, "condition name")
-        self._eat(TokenKind.ident, "'then'")
+            self._eat(TokenKind.ident, "expected 'not'")
+        cond_tok = self._eat(TokenKind.ident, "expected condition name")
+        self._eat(TokenKind.ident, "expected 'then'")
         then_blk = self._block()
         else_blk = None
         if self._cur().kind is TokenKind.ident and self._cur().text == "else":
-            self._eat(TokenKind.ident, "else")
+            self._eat(TokenKind.ident, "expected 'else'")
             else_blk = self._block()
         return Cond(cond_tok.text, negate, then_blk, else_blk)
 
     def _while(self) -> Loop:
-        self._eat(TokenKind.ident, "'while'")
+        self._eat(TokenKind.ident, "expected 'while'")
         negate = False
         if self._cur().text == "not":
             negate = True
-            self._eat(TokenKind.ident, "'not'")
+            self._eat(TokenKind.ident, "expected 'not'")
         cond_tok = self._eat(TokenKind.ident, "condition name")
-        self._eat(TokenKind.ident, "'then'")
+        self._eat(TokenKind.ident, "expected 'then'")
         body = self._block()
         return Loop(cond_tok.text, negate, body)
 
